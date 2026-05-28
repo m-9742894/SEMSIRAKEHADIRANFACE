@@ -6,6 +6,11 @@
     <title>Face Scan Attendance - Sistem Kehadiran Wajah</title>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -37,7 +42,8 @@
         .logo-icon i { font-size: 1.5rem; color: white; }
         .logo-text h1 { font-size: 1.2rem; color: white; }
         .logo-text p { font-size: 0.7rem; color: #94a3b8; }
-        .logout-btn {
+        .nav-buttons { display: flex; gap: 1rem; }
+        .nav-btn {
             background: rgba(255,255,255,0.1);
             border: none;
             padding: 0.5rem 1rem;
@@ -52,7 +58,7 @@
             gap: 8px;
             transition: 0.2s;
         }
-        .logout-btn:hover { background: rgba(255,255,255,0.2); }
+        .nav-btn:hover { background: rgba(255,255,255,0.2); }
         .main-grid {
             display: grid;
             grid-template-columns: 1fr 400px;
@@ -140,6 +146,8 @@
             font-family: monospace;
             font-size: 0.65rem;
             margin-top: 0.5rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
         .attendance-section {
             background: #1e293b;
@@ -193,7 +201,11 @@
                 <p>Sistem Kehadiran Pengecaman Wajah</p>
             </div>
         </div>
-        <a href="index.html" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Log Keluar</a>
+        <div class="nav-buttons">
+            <a href="scan-muka.html" class="nav-btn" style="background:#10b981;"><i class="fas fa-camera"></i> Scan Kehadiran</a>
+            <a href="daftar-wajah.html" class="nav-btn"><i class="fas fa-user-plus"></i> Daftar Wajah</a>
+            <a href="index.html" class="nav-btn"><i class="fas fa-sign-out-alt"></i> Log Keluar</a>
+        </div>
     </div>
 
     <div class="main-grid">
@@ -248,7 +260,23 @@
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
 <script>
-    // DOM Elements
+    // ==================== FIREBASE CONFIGURATION ====================
+    const firebaseConfig = {
+        apiKey: "AIzaSyArA_ctzB3gbM30gPYF58ZP08eFeyepzeE",
+        authDomain: "facerecognitionsemsira.firebaseapp.com",
+        projectId: "facerecognitionsemsira",
+        storageBucket: "facerecognitionsemsira.firebasestorage.app",
+        messagingSenderId: "934676262199",
+        appId: "1:934676262199:web:3a2fb4de33078f08683eb2",
+        measurementId: "G-12PD20V80S"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    console.log("Firebase initialized");
+
+    // ==================== DOM ELEMENTS ====================
     const video = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
     const context = canvas.getContext('2d');
@@ -261,17 +289,16 @@
     const attendanceList = document.getElementById('attendanceList');
     const debugInfo = document.getElementById('debugInfo');
 
-    // Variables
+    // ==================== VARIABLES ====================
     let modelsLoaded = false;
     let lastScanTime = 0;
     const SCAN_COOLDOWN = 5000;
     let animationId = null;
     let stream = null;
     let detectionActive = false;
+    let registeredFaces = []; // Store from Firestore
 
-    // Registered faces data
-    let registeredFaces = [];
-
+    // ==================== UPDATE DEBUG ====================
     function updateDebug(message) {
         const time = new Date().toLocaleTimeString();
         debugInfo.innerHTML = `[${time}] ${message}\n` + debugInfo.innerHTML;
@@ -281,55 +308,99 @@
         console.log(message);
     }
 
-    // Load registered faces from localStorage
-    function loadRegisteredFaces() {
-        const saved = localStorage.getItem('registeredFaces');
-        if (saved) {
-            registeredFaces = JSON.parse(saved);
-            updateDebug(`✅ ${registeredFaces.length} wajah dimuat dari localStorage`);
-        } else {
+    // ==================== LOAD REGISTERED FACES FROM FIRESTORE ====================
+    async function loadRegisteredFacesFromFirestore() {
+        updateDebug("🔄 Memuat data wajah dari Firestore...");
+        
+        try {
+            const snapshot = await db.collection('student_faces').get();
             registeredFaces = [];
-            updateDebug(`⚠️ Tiada data wajah. Sila daftar wajah terlebih dahulu.`);
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                registeredFaces.push({
+                    id: doc.id,
+                    name: data.name,
+                    ic: data.ic,
+                    className: data.class,
+                    descriptor: data.descriptor
+                });
+            });
+            
+            updateDebug(`✅ ${registeredFaces.length} wajah dimuat dari Firestore`);
+            return true;
+        } catch (error) {
+            console.error("Error loading faces:", error);
+            updateDebug(`❌ Gagal muat data wajah: ${error.message}`);
+            return false;
         }
     }
 
-    // Add attendance record
-    function addAttendanceRecord(name, ic, className, status, message) {
+    // ==================== ADD ATTENDANCE RECORD TO FIRESTORE ====================
+    async function addAttendanceToFirestore(name, ic, className, status, message) {
         const now = new Date();
         const dateStr = now.toLocaleDateString('ms-MY');
         const timeStr = now.toLocaleTimeString('ms-MY');
         const dayStr = now.toLocaleDateString('ms-MY', { weekday: 'long' });
-
-        const record = {
-            id: Date.now(),
-            name,
-            ic,
-            className,
-            status,
-            message,
+        
+        const attendanceData = {
+            name: name,
+            ic: ic,
+            className: className,
+            status: status,
+            message: message,
             date: dateStr,
             time: timeStr,
             day: dayStr,
-            timestamp: now.getTime()
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            scanDate: dateStr
         };
-
-        let records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
-        records.unshift(record);
-        records = records.slice(0, 50);
-        localStorage.setItem('attendance_records', JSON.stringify(records));
-
-        renderAttendanceList();
-        updateDebug(`✅ Kehadiran direkod: ${name} (${timeStr})`);
+        
+        try {
+            await db.collection('attendance_records').add(attendanceData);
+            updateDebug(`✅ Kehadiran direkod ke Firestore: ${name} (${timeStr})`);
+            return true;
+        } catch (error) {
+            console.error("Error saving attendance:", error);
+            updateDebug(`❌ Gagal rekod kehadiran: ${error.message}`);
+            return false;
+        }
     }
 
-    function renderAttendanceList() {
-        const records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
+    // ==================== LOAD ATTENDANCE RECORDS FROM FIRESTORE ====================
+    async function loadAttendanceFromFirestore() {
+        updateDebug("🔄 Memuat rekod kehadiran dari Firestore...");
         
-        if (records.length === 0) {
+        try {
+            const today = new Date().toLocaleDateString('ms-MY');
+            const snapshot = await db.collection('attendance_records')
+                .where('scanDate', '==', today)
+                .orderBy('timestamp', 'desc')
+                .get();
+            
+            const records = [];
+            snapshot.forEach(doc => {
+                records.push({ id: doc.id, ...doc.data() });
+            });
+            
+            renderAttendanceList(records);
+            updateDebug(`✅ ${records.length} rekod kehadiran untuk hari ini`);
+            return records;
+        } catch (error) {
+            console.error("Error loading attendance:", error);
+            updateDebug(`❌ Gagal muat rekod kehadiran: ${error.message}`);
+            renderAttendanceList([]);
+            return [];
+        }
+    }
+
+    // ==================== RENDER ATTENDANCE LIST ====================
+    function renderAttendanceList(records) {
+        if (!records || records.length === 0) {
             attendanceList.innerHTML = `
                 <div class="empty-log">
                     <i class="fas fa-info-circle"></i>
-                    <p>Tiada rekod kehadiran</p>
+                    <p>Tiada rekod kehadiran hari ini</p>
                     <p style="font-size: 0.7rem;">Hadapkan muka ke kamera untuk daftar kehadiran</p>
                 </div>
             `;
@@ -356,13 +427,24 @@
         `).join('');
     }
 
-    // Load face-api models
+    // ==================== CHECK IF ALREADY ATTENDED TODAY ====================
+    async function hasAttendedToday(ic) {
+        const today = new Date().toLocaleDateString('ms-MY');
+        const snapshot = await db.collection('attendance_records')
+            .where('ic', '==', ic)
+            .where('scanDate', '==', today)
+            .where('status', '==', 'success')
+            .get();
+        
+        return !snapshot.empty;
+    }
+
+    // ==================== LOAD FACE-API MODELS ====================
     async function loadModels() {
         cameraStatus.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Memuatkan model...';
         updateDebug("🔄 Memuatkan model face-api.js...");
         
         try {
-            // Gunakan path yang betul untuk model
             const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
             
             await Promise.all([
@@ -381,7 +463,7 @@
         }
     }
 
-    // Start camera
+    // ==================== START CAMERA ====================
     async function startCamera() {
         updateDebug("🔄 Meminta akses kamera...");
         
@@ -411,7 +493,6 @@
                 };
             });
             
-            // Set canvas dimensions to match video
             const resizeObserver = new ResizeObserver(() => {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
@@ -442,16 +523,16 @@
             updateDebug(`❌ Kamera gagal: ${error.message}`);
             
             if (error.name === 'NotAllowedError') {
-                alert("❌ Akses kamera ditolak. Sila benarkan akses kamera dalam penyemak imbas anda.");
+                alert("❌ Akses kamera ditolak. Sila benarkan akses kamera.");
             } else if (error.name === 'NotFoundError') {
-                alert("❌ Tiada kamera dikesan. Pastikan peranti anda mempunyai kamera.");
+                alert("❌ Tiada kamera dikesan.");
             } else {
                 alert("❌ Gagal mengakses kamera. Sila cuba lagi.");
             }
         }
     }
 
-    // Stop camera
+    // ==================== STOP CAMERA ====================
     function stopCamera() {
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
@@ -475,7 +556,7 @@
         }
     }
 
-    // Match face with registered faces
+    // ==================== MATCH FACE WITH REGISTERED FACES ====================
     function matchFace(descriptor) {
         if (!registeredFaces.length) return null;
         
@@ -495,17 +576,7 @@
         return bestMatch;
     }
 
-    // Check if student already attended today
-    function hasAttendedToday(studentId) {
-        const records = JSON.parse(localStorage.getItem('attendance_records') || '[]');
-        const today = new Date().toLocaleDateString('ms-MY');
-        
-        return records.some(record => 
-            record.ic === studentId && record.date === today && record.status === 'success'
-        );
-    }
-
-    // Detection loop - MAIN FUNCTION FOR DRAWING BOXES
+    // ==================== DETECTION LOOP ====================
     async function startDetectionLoop() {
         if (!modelsLoaded || !video.srcObject || video.paused || detectionActive) {
             if (!detectionActive) {
@@ -527,7 +598,6 @@
         }
         
         faceapi.matchDimensions(canvas, displaySize);
-        updateDebug(`📐 Canvas dimension set to ${displaySize.width}x${displaySize.height}`);
         
         async function detect() {
             if (!video.srcObject || video.paused || video.ended) {
@@ -536,24 +606,18 @@
             }
             
             try {
-                // Perform face detection
                 const detections = await faceapi.detectAllFaces(video)
                     .withFaceLandmarks()
                     .withFaceDescriptors();
                 
-                // Resize detections to match canvas
                 const resizedDetections = faceapi.resizeResults(detections, displaySize);
                 
-                // Clear canvas
                 context.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Draw detections
                 if (resizedDetections.length > 0) {
-                    // Draw face boxes
                     faceapi.draw.drawDetections(canvas, resizedDetections);
                     faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
                     
-                    // Process each detected face
                     for (let i = 0; i < detections.length && i < resizedDetections.length; i++) {
                         const detection = detections[i];
                         const box = resizedDetections[i].detection.box;
@@ -563,7 +627,6 @@
                             const now = Date.now();
                             
                             if (match) {
-                                // Face recognized - GREEN box with name
                                 context.strokeStyle = '#10b981';
                                 context.lineWidth = 4;
                                 context.strokeRect(box.x, box.y, box.width, box.height);
@@ -572,27 +635,28 @@
                                 context.font = 'bold 16px "Plus Jakarta Sans"';
                                 context.fillText(`${match.name}`, box.x, box.y - 10);
                                 
-                                // Record attendance with cooldown
                                 if ((now - lastScanTime) > SCAN_COOLDOWN) {
                                     lastScanTime = now;
                                     
-                                    if (!hasAttendedToday(match.ic)) {
-                                        addAttendanceRecord(
+                                    const alreadyAttended = await hasAttendedToday(match.ic);
+                                    if (!alreadyAttended) {
+                                        await addAttendanceToFirestore(
                                             match.name,
                                             match.ic,
                                             match.className || '-',
                                             'success',
                                             'Kehadiran berjaya direkodkan'
                                         );
+                                        await loadAttendanceFromFirestore();
                                         
-                                        // Flash effect
                                         context.strokeStyle = '#10b981';
                                         context.lineWidth = 6;
                                         context.strokeRect(box.x, box.y, box.width, box.height);
+                                    } else {
+                                        updateDebug(`⚠️ ${match.name} sudah hadir hari ini`);
                                     }
                                 }
                             } else {
-                                // Face NOT recognized - RED box with warning
                                 context.strokeStyle = '#ef4444';
                                 context.lineWidth = 3;
                                 context.strokeRect(box.x, box.y, box.width, box.height);
@@ -602,7 +666,6 @@
                                 context.fillText('⚠️ Wajah Tidak Dikenali', box.x, box.y - 10);
                             }
                         } else if (registeredFaces.length === 0) {
-                            // No registered faces - YELLOW box
                             context.strokeStyle = '#f59e0b';
                             context.lineWidth = 3;
                             context.strokeRect(box.x, box.y, box.width, box.height);
@@ -613,7 +676,7 @@
                     }
                     
                     if (detections.length > 0) {
-                        updateDebug(`🎯 ${detections.length} wajah dikesan`);
+                        // updateDebug(`🎯 ${detections.length} wajah dikesan`);
                     }
                 }
             } catch (e) {
@@ -627,16 +690,21 @@
         detect();
     }
 
-    // Event listeners
+    // ==================== INITIALIZE ====================
+    async function init() {
+        await loadModels();
+        await loadRegisteredFacesFromFirestore();
+        await loadAttendanceFromFirestore();
+        updateDebug("🚀 Sistem sedia. Klik 'Start Camera' untuk memulakan.");
+    }
+    
+    // ==================== EVENT LISTENERS ====================
     startBtn?.addEventListener('click', startCamera);
     restartBtn?.addEventListener('click', startCamera);
     stopBtn?.addEventListener('click', stopCamera);
 
-    // Initialize
-    loadModels();
-    loadRegisteredFaces();
-    renderAttendanceList();
-    updateDebug("🚀 Sistem sedia. Klik 'Start Camera' untuk memulakan.");
+    // Start initialization
+    init();
 </script>
 </body>
 </html>
