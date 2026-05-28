@@ -7,25 +7,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
             background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
             min-height: 100vh;
             padding: 20px;
         }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        /* Header */
+        .container { max-width: 1400px; margin: 0 auto; }
         .header {
             display: flex;
             justify-content: space-between;
@@ -36,32 +25,18 @@
             padding-bottom: 1rem;
             border-bottom: 2px solid rgba(255,255,255,0.1);
         }
-        .logo-area {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
+        .logo-area { display: flex; align-items: center; gap: 1rem; }
         .logo-icon {
             background: linear-gradient(135deg, #667eea, #764ba2);
-            width: 45px;
-            height: 45px;
+            width: 45px; height: 45px;
             border-radius: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
-        .logo-icon i {
-            font-size: 1.5rem;
-            color: white;
-        }
-        .logo-text h1 {
-            font-size: 1.2rem;
-            color: white;
-        }
-        .logo-text p {
-            font-size: 0.7rem;
-            color: #94a3b8;
-        }
+        .logo-icon i { font-size: 1.5rem; color: white; }
+        .logo-text h1 { font-size: 1.2rem; color: white; }
+        .logo-text p { font-size: 0.7rem; color: #94a3b8; }
         .logout-btn {
             background: rgba(255,255,255,0.1);
             border: none;
@@ -77,23 +52,16 @@
             gap: 8px;
             transition: 0.2s;
         }
-        .logout-btn:hover {
-            background: rgba(255,255,255,0.2);
-        }
-
-        /* Main Content */
+        .logout-btn:hover { background: rgba(255,255,255,0.2); }
         .main-grid {
             display: grid;
             grid-template-columns: 1fr 400px;
             gap: 1.5rem;
         }
-
-        /* Camera Section */
         .camera-section {
             background: #1e293b;
             border-radius: 1.5rem;
             overflow: hidden;
-            position: relative;
             box-shadow: 0 20px 35px -10px rgba(0,0,0,0.3);
         }
         .camera-header {
@@ -103,10 +71,7 @@
             justify-content: space-between;
             align-items: center;
         }
-        .camera-header h3 {
-            color: white;
-            font-size: 0.9rem;
-        }
+        .camera-header h3 { color: white; font-size: 0.9rem; }
         .camera-status {
             background: rgba(0,0,0,0.5);
             padding: 0.2rem 0.6rem;
@@ -122,12 +87,7 @@
             align-items: center;
             justify-content: center;
         }
-        #webcam {
-            width: 100%;
-            height: auto;
-            display: block;
-            transform: scaleX(-1);
-        }
+        #webcam { width: 100%; height: auto; display: block; transform: scaleX(-1); }
         #canvas {
             position: absolute;
             top: 0;
@@ -152,85 +112,16 @@
             align-items: center;
             gap: 8px;
         }
-        .btn-start {
-            background: #10b981;
-            color: white;
-        }
-        .btn-start:hover {
-            background: #059669;
-            transform: translateY(-2px);
-        }
-        .btn-stop {
-            background: #ef4444;
-            color: white;
-        }
-        .btn-stop:hover {
-            background: #dc2626;
-            transform: translateY(-2px);
-        }
+        .btn-start { background: #10b981; color: white; }
+        .btn-start:hover { background: #059669; transform: translateY(-2px); }
+        .btn-stop { background: #ef4444; color: white; }
+        .btn-stop:hover { background: #dc2626; transform: translateY(-2px); }
         .camera-placeholder {
             text-align: center;
             padding: 80px 20px;
             color: #64748b;
         }
-        .camera-placeholder i {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            color: #475569;
-        }
-
-        /* Recognition Status */
-        .recognition-status {
-            background: #1e293b;
-            border-radius: 1rem;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 0.8rem;
-            border-radius: 1rem;
-        }
-        .status-detected {
-            background: #064e3b;
-            border-left: 4px solid #10b981;
-        }
-        .status-detected i { color: #10b981; }
-        .status-not-detected {
-            background: #450a0a;
-            border-left: 4px solid #ef4444;
-        }
-        .status-not-detected i { color: #ef4444; }
-        .status-loading {
-            background: #1e3a5f;
-            border-left: 4px solid #3b82f6;
-        }
-        .status-loading i { color: #3b82f6; }
-        .student-info-card {
-            background: #0f172a;
-            border-radius: 1rem;
-            padding: 1rem;
-            margin-top: 1rem;
-        }
-        .student-info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #334155;
-        }
-        .student-info-row span:first-child {
-            color: #94a3b8;
-            font-size: 0.75rem;
-        }
-        .student-info-row span:last-child {
-            color: white;
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-
-        /* Attendance Log */
+        .camera-placeholder i { font-size: 4rem; margin-bottom: 1rem; color: #475569; }
         .attendance-section {
             background: #1e293b;
             border-radius: 1.5rem;
@@ -241,13 +132,7 @@
             padding: 1rem;
             border-bottom: 1px solid #334155;
         }
-        .attendance-header h3 {
-            color: white;
-            font-size: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .attendance-header h3 { color: white; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
         .attendance-list {
             max-height: 500px;
             overflow-y: auto;
@@ -260,22 +145,10 @@
             margin-bottom: 0.8rem;
             transition: 0.2s;
         }
-        .attendance-item.success {
-            border-left: 4px solid #10b981;
-        }
-        .attendance-item.error {
-            border-left: 4px solid #ef4444;
-        }
-        .attendance-name {
-            font-weight: 700;
-            color: white;
-            font-size: 0.9rem;
-        }
-        .attendance-detail {
-            font-size: 0.7rem;
-            color: #94a3b8;
-            margin-top: 4px;
-        }
+        .attendance-item.success { border-left: 4px solid #10b981; }
+        .attendance-item.error { border-left: 4px solid #ef4444; }
+        .attendance-name { font-weight: 700; color: white; font-size: 0.9rem; }
+        .attendance-detail { font-size: 0.7rem; color: #94a3b8; margin-top: 4px; }
         .attendance-time {
             font-size: 0.65rem;
             color: #64748b;
@@ -285,31 +158,10 @@
             flex-wrap: wrap;
             gap: 5px;
         }
-        .badge-success {
-            background: #10b981;
-            color: white;
-            padding: 0.2rem 0.5rem;
-            border-radius: 20px;
-            font-size: 0.6rem;
-        }
-        .badge-error {
-            background: #ef4444;
-            color: white;
-            padding: 0.2rem 0.5rem;
-            border-radius: 20px;
-            font-size: 0.6rem;
-        }
-        .empty-log {
-            text-align: center;
-            padding: 2rem;
-            color: #64748b;
-        }
-
-        @media (max-width: 900px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+        .badge-success { background: #10b981; color: white; padding: 0.2rem 0.5rem; border-radius: 20px; font-size: 0.6rem; }
+        .badge-error { background: #ef4444; color: white; padding: 0.2rem 0.5rem; border-radius: 20px; font-size: 0.6rem; }
+        .empty-log { text-align: center; padding: 2rem; color: #64748b; }
+        @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -351,7 +203,7 @@
             </div>
         </div>
 
-        <!-- Recognition & Attendance -->
+        <!-- Attendance Log -->
         <div class="attendance-section">
             <div class="attendance-header">
                 <h3><i class="fas fa-list-alt"></i> Log Kehadiran Hari Ini</h3>
@@ -385,29 +237,28 @@
 
     // Variables
     let modelsLoaded = false;
-    let isScanning = true;
     let lastScanTime = 0;
     const SCAN_COOLDOWN = 5000; // 5 seconds
     let animationId = null;
     let stream = null;
+    let currentDetectedFace = null; // Track current detected face to avoid multiple logs
 
-    // Demo data - Registered faces
+    // Registered faces data
     let registeredFaces = [];
 
-    // Load demo data from localStorage
+    // Load registered faces from localStorage
     function loadRegisteredFaces() {
         const saved = localStorage.getItem('registeredFaces');
         if (saved) {
             registeredFaces = JSON.parse(saved);
             console.log(`Loaded ${registeredFaces.length} registered faces`);
         } else {
-            // Add demo student for testing
             registeredFaces = [];
             console.log("No registered faces found");
         }
     }
 
-    // Add log to attendance list
+    // Add attendance record (ONLY when face is recognized)
     function addAttendanceRecord(name, ic, className, status, message) {
         const now = new Date();
         const dateStr = now.toLocaleDateString('ms-MY');
@@ -487,15 +338,13 @@
         }
     }
 
-    // Start camera with better error handling
+    // Start camera
     async function startCamera() {
         try {
-            // First, stop any existing stream
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
             }
             
-            // Request camera with specific constraints
             stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     width: { ideal: 640 },
@@ -510,7 +359,6 @@
             cameraPlaceholder.style.display = "none";
             cameraControls.style.display = "flex";
             
-            // Wait for video to be ready
             await new Promise((resolve) => {
                 video.onloadedmetadata = () => {
                     video.play();
@@ -518,18 +366,15 @@
                 };
             });
             
-            // Set canvas dimensions
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
             cameraStatus.innerHTML = '<i class="fas fa-video"></i> Kamera aktif';
             console.log("Camera started successfully");
             
-            // Start detection if models are loaded
             if (modelsLoaded) {
                 startDetectionLoop();
             } else {
-                // Wait for models to load
                 const checkModels = setInterval(() => {
                     if (modelsLoaded) {
                         clearInterval(checkModels);
@@ -542,9 +387,9 @@
             cameraStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Kamera gagal';
             
             if (error.name === 'NotAllowedError') {
-                alert("❌ Akses kamera ditolak. Sila benarkan akses kamera dalam penyemak imbas anda.");
+                alert("❌ Akses kamera ditolak. Sila benarkan akses kamera.");
             } else if (error.name === 'NotFoundError') {
-                alert("❌ Tiada kamera dikesan. Pastikan peranti anda mempunyai kamera.");
+                alert("❌ Tiada kamera dikesan.");
             } else {
                 alert("❌ Gagal mengakses kamera. Sila cuba lagi.");
             }
@@ -568,8 +413,6 @@
             cancelAnimationFrame(animationId);
             animationId = null;
         }
-        
-        // Clear canvas
         if (context) {
             context.clearRect(0, 0, canvas.width, canvas.height);
         }
@@ -639,59 +482,67 @@
                 faceapi.draw.drawDetections(canvas, resizedDetections);
                 faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
                 
-                // Check for face matching
-                if (detections.length > 0 && registeredFaces.length > 0) {
-                    const currentDescriptor = detections[0].descriptor;
-                    const match = matchFace(currentDescriptor);
-                    const now = Date.now();
-                    
-                    if (match && (now - lastScanTime) > SCAN_COOLDOWN) {
-                        lastScanTime = now;
+                // Process each detected face
+                if (detections.length > 0) {
+                    for (let i = 0; i < detections.length; i++) {
+                        const detection = detections[i];
+                        const box = resizedDetections[i].detection.box;
                         
-                        if (hasAttendedToday(match.ic)) {
-                            addAttendanceRecord(
-                                match.name,
-                                match.ic,
-                                match.className || '-',
-                                'error',
-                                'Kehadiran sudah direkodkan untuk hari ini'
-                            );
-                        } else {
-                            addAttendanceRecord(
-                                match.name,
-                                match.ic,
-                                match.className || '-',
-                                'success',
-                                'Kehadiran berjaya direkodkan'
-                            );
+                        if (registeredFaces.length > 0) {
+                            const match = matchFace(detection.descriptor);
+                            const now = Date.now();
                             
-                            // Flash green box effect
-                            if (resizedDetections[0]) {
-                                const box = resizedDetections[0].detection.box;
+                            if (match) {
+                                // Face recognized - draw green box with name
                                 context.strokeStyle = '#10b981';
-                                context.lineWidth = 4;
+                                context.lineWidth = 3;
                                 context.strokeRect(box.x, box.y, box.width, box.height);
                                 
-                                // Draw name
+                                // Draw name above box
                                 context.fillStyle = '#10b981';
                                 context.font = 'bold 16px "Plus Jakarta Sans"';
-                                context.fillText(`${match.name} - Dihadiri`, box.x, box.y - 10);
+                                context.fillText(`${match.name}`, box.x, box.y - 10);
+                                
+                                // Record attendance (with cooldown)
+                                if ((now - lastScanTime) > SCAN_COOLDOWN) {
+                                    lastScanTime = now;
+                                    
+                                    if (!hasAttendedToday(match.ic)) {
+                                        addAttendanceRecord(
+                                            match.name,
+                                            match.ic,
+                                            match.className || '-',
+                                            'success',
+                                            'Kehadiran berjaya direkodkan'
+                                        );
+                                        
+                                        // Flash effect
+                                        context.strokeStyle = '#10b981';
+                                        context.lineWidth = 5;
+                                        context.strokeRect(box.x, box.y, box.width, box.height);
+                                    }
+                                }
+                            } else {
+                                // Face NOT recognized - show "Wajah Tidak Dikenali" on the box
+                                context.strokeStyle = '#ef4444';
+                                context.lineWidth = 3;
+                                context.strokeRect(box.x, box.y, box.width, box.height);
+                                
+                                // Draw "Wajah Tidak Dikenali" text above the box (RED)
+                                context.fillStyle = '#ef4444';
+                                context.font = 'bold 14px "Plus Jakarta Sans"';
+                                context.fillText('⚠️ Wajah Tidak Dikenali', box.x, box.y - 10);
                             }
+                        } else {
+                            // No registered faces at all
+                            context.strokeStyle = '#f59e0b';
+                            context.lineWidth = 3;
+                            context.strokeRect(box.x, box.y, box.width, box.height);
+                            context.fillStyle = '#f59e0b';
+                            context.font = '14px "Plus Jakarta Sans"';
+                            context.fillText('Tiada data wajah. Sila daftar.', box.x, box.y - 10);
                         }
                     }
-                    
-                    if (match && resizedDetections[0]) {
-                        const box = resizedDetections[0].detection.box;
-                        context.fillStyle = '#10b981';
-                        context.font = 'bold 16px "Plus Jakarta Sans"';
-                        context.fillText(`${match.name}`, box.x, box.y - 10);
-                    }
-                } else if (detections.length > 0 && registeredFaces.length === 0) {
-                    // Face detected but no registration
-                    const box = resizedDetections[0].detection.box;
-                    context.fillStyle = '#f59e0b';
-                    context.font = '14px "Plus Jakarta Sans"';
-                    context.fillText('Wajah tidak dikenali. Sila daftar.', box.x, box.y - 10);
                 }
             } catch (e) {
                 console.error("Detection error:", e);
@@ -712,14 +563,6 @@
     loadModels();
     loadRegisteredFaces();
     renderAttendanceList();
-
-    // Auto-start camera when page loads (optional)
-    // Uncomment below to auto-start
-    // setTimeout(() => {
-    //     if (modelsLoaded) {
-    //         startCamera();
-    //     }
-    // }, 1000);
 </script>
 </body>
 </html>
