@@ -216,6 +216,21 @@
             font-size: 1rem;
         }
         .delete-btn:hover { color: #dc2626; }
+        .debug-panel {
+            background: #0f172a;
+            border-radius: 1rem;
+            padding: 0.8rem;
+            margin-top: 1rem;
+            font-size: 0.7rem;
+            color: #94a3b8;
+        }
+        .debug-panel pre {
+            color: #10b981;
+            font-family: monospace;
+            font-size: 0.65rem;
+            margin-top: 0.5rem;
+            white-space: pre-wrap;
+        }
         @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -258,6 +273,10 @@
                 <button class="btn-cam btn-start" id="restartCameraBtn"><i class="fas fa-play"></i> Start</button>
                 <button class="btn-cam btn-capture" id="captureBtn"><i class="fas fa-camera"></i> Tangkap Wajah</button>
                 <button class="btn-cam btn-stop" id="stopCameraBtn"><i class="fas fa-stop"></i> Stop</button>
+            </div>
+            <div class="debug-panel">
+                <i class="fas fa-bug"></i> Status Sistem:
+                <pre id="debugInfo">Menunggu inisialisasi...</pre>
             </div>
         </div>
 
@@ -342,40 +361,67 @@
     const facePreview = document.getElementById('facePreview');
     const messageBox = document.getElementById('messageBox');
     const studentListDiv = document.getElementById('studentList');
+    const debugInfo = document.getElementById('debugInfo');
 
     // ==================== VARIABLES ====================
     let modelsLoaded = false;
     let stream = null;
     let currentDescriptor = null;
-    let currentFaceImage = null;
     let animationId = null;
+
+    // ==================== UPDATE DEBUG ====================
+    function updateDebug(message) {
+        const time = new Date().toLocaleTimeString();
+        debugInfo.innerHTML = `[${time}] ${message}\n` + debugInfo.innerHTML;
+        if (debugInfo.innerHTML.split('\n').length > 8) {
+            debugInfo.innerHTML = debugInfo.innerHTML.split('\n').slice(0, 8).join('\n');
+        }
+        console.log(message);
+    }
 
     // ==================== LOAD FACE-API MODELS ====================
     async function loadModels() {
         cameraStatus.innerHTML = '⏳ Memuatkan model...';
+        updateDebug("🔄 Memuatkan model face-api.js...");
+        
         try {
             const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+            
             await Promise.all([
                 faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
                 faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
             ]);
+            
             modelsLoaded = true;
             cameraStatus.innerHTML = '✅ Model sedia';
-            console.log("Models loaded");
+            updateDebug("✅ Model face-api.js berjaya dimuatkan!");
+            
+            // Enable start button
+            if (startBtn) startBtn.disabled = false;
+            
         } catch (error) {
             console.error("Error loading models:", error);
             cameraStatus.innerHTML = '❌ Model gagal';
+            updateDebug(`❌ Gagal muat model: ${error.message}`);
         }
     }
 
     // ==================== START CAMERA ====================
     async function startCamera() {
+        updateDebug("🔄 Meminta akses kamera...");
+        
         try {
-            if (stream) stream.getTracks().forEach(track => track.stop());
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
             
             stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+                video: { 
+                    width: { ideal: 640 }, 
+                    height: { ideal: 480 }, 
+                    facingMode: "user" 
+                }
             });
             
             video.srcObject = stream;
@@ -385,17 +431,49 @@
             cameraControls.style.display = "flex";
             
             await new Promise((resolve) => {
-                video.onloadedmetadata = () => { video.play(); resolve(); };
+                video.onloadedmetadata = () => {
+                    video.play();
+                    resolve();
+                };
             });
+            
+            // Set canvas dimensions
+            const resizeObserver = new ResizeObserver(() => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                updateDebug(`📐 Canvas size: ${canvas.width}x${canvas.height}`);
+            });
+            resizeObserver.observe(video);
             
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
             cameraStatus.innerHTML = '📷 Kamera aktif';
-            startDetectionLoop();
+            updateDebug(`✅ Kamera aktif! Resolusi: ${video.videoWidth}x${video.videoHeight}`);
+            
+            if (modelsLoaded) {
+                startDetectionLoop();
+            } else {
+                updateDebug("⏳ Menunggu model selesai dimuat...");
+                const checkModels = setInterval(() => {
+                    if (modelsLoaded) {
+                        clearInterval(checkModels);
+                        startDetectionLoop();
+                    }
+                }, 500);
+            }
         } catch (error) {
+            console.error("Camera error:", error);
             cameraStatus.innerHTML = '❌ Kamera gagal';
-            alert("Gagal mengakses kamera. Sila pastikan kebenaran diberikan.");
+            updateDebug(`❌ Kamera gagal: ${error.message}`);
+            
+            if (error.name === 'NotAllowedError') {
+                alert("❌ Akses kamera ditolak. Sila benarkan akses kamera dalam penyemak imbas anda.");
+            } else if (error.name === 'NotFoundError') {
+                alert("❌ Tiada kamera dikesan. Pastikan peranti anda mempunyai kamera.");
+            } else {
+                alert("❌ Gagal mengakses kamera. Sila cuba lagi.");
+            }
         }
     }
 
@@ -411,27 +489,55 @@
         cameraPlaceholder.style.display = "flex";
         cameraControls.style.display = "none";
         cameraStatus.innerHTML = '● Kamera dihentikan';
-        if (animationId) cancelAnimationFrame(animationId);
+        updateDebug("⏹️ Kamera dihentikan");
+        
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+        }
+        if (context) {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        }
     }
 
     // ==================== DETECTION LOOP ====================
     async function startDetectionLoop() {
-        if (!modelsLoaded || !video.srcObject) return;
+        if (!modelsLoaded || !video.srcObject || video.paused) {
+            animationId = requestAnimationFrame(() => startDetectionLoop());
+            return;
+        }
         
         const displaySize = { width: video.videoWidth, height: video.videoHeight };
+        
+        if (displaySize.width === 0 || displaySize.height === 0) {
+            animationId = requestAnimationFrame(() => startDetectionLoop());
+            return;
+        }
+        
         faceapi.matchDimensions(canvas, displaySize);
         
         async function detect() {
-            if (!video.srcObject) return;
+            if (!video.srcObject || video.paused || video.ended) {
+                animationId = requestAnimationFrame(detect);
+                return;
+            }
             
-            const detections = await faceapi.detectAllFaces(video)
-                .withFaceLandmarks()
-                .withFaceDescriptors();
-            
-            const resizedDetections = faceapi.resizeResults(detections, displaySize);
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            faceapi.draw.drawDetections(canvas, resizedDetections);
-            faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+            try {
+                const detections = await faceapi.detectAllFaces(video)
+                    .withFaceLandmarks()
+                    .withFaceDescriptors();
+                
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (resizedDetections.length > 0) {
+                    faceapi.draw.drawDetections(canvas, resizedDetections);
+                    faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                }
+            } catch (e) {
+                console.error("Detection error:", e);
+            }
             
             animationId = requestAnimationFrame(detect);
         }
@@ -441,8 +547,17 @@
 
     // ==================== CAPTURE FACE ====================
     async function captureFace() {
-        if (!modelsLoaded || !video.srcObject) {
-            showMessage("Kamera belum aktif atau model belum sedia", "error");
+        updateDebug("📸 Mencuba menangkap wajah...");
+        
+        if (!modelsLoaded) {
+            showMessage("Model belum sedia. Sila tunggu sebentar.", "error");
+            updateDebug("❌ Model belum sedia");
+            return;
+        }
+        
+        if (!video.srcObject || video.paused) {
+            showMessage("Kamera belum aktif. Sila start camera dahulu.", "error");
+            updateDebug("❌ Kamera belum aktif");
             return;
         }
         
@@ -465,12 +580,14 @@
             facePreview.style.color = '#10b981';
             saveBtn.disabled = false;
             showMessage("Wajah berjaya ditangkap. Sila lengkapkan maklumat dan simpan.", "success");
+            updateDebug(`✅ Wajah berjaya ditangkap! Descriptor length: ${currentDescriptor.length}`);
         } else {
             facePreview.innerHTML = '❌ Tiada wajah dikesan. Pastikan muka jelas kelihatan.';
             facePreview.style.color = '#ef4444';
             currentDescriptor = null;
             saveBtn.disabled = true;
             showMessage("Tiada wajah dikesan. Cuba lagi.", "error");
+            updateDebug("❌ Tiada wajah dikesan");
         }
     }
 
@@ -485,10 +602,18 @@
         if (!className) { showMessage("Sila masukkan Kelas", "error"); return; }
         if (!currentDescriptor) { showMessage("Sila tangkap wajah terlebih dahulu", "error"); return; }
         
+        // Validate IC (12 digits)
+        const cleanIc = ic.replace(/-/g, '');
+        if (!/^\d{12}$/.test(cleanIc)) {
+            showMessage("No. Kad Pengenalan mesti 12 digit nombor", "error");
+            return;
+        }
+        
         // Check if IC already exists
-        const existing = await db.collection('student_faces').where('ic', '==', ic).get();
+        updateDebug("🔍 Memeriksa IC sudah wujud...");
+        const existing = await db.collection('student_faces').where('ic', '==', cleanIc).get();
         if (!existing.empty) {
-            showMessage(`❌ No. IC ${ic} sudah wujud untuk ${existing.docs[0].data().name}`, "error");
+            showMessage(`❌ No. IC ${cleanIc} sudah wujud untuk ${existing.docs[0].data().name}`, "error");
             return;
         }
         
@@ -498,14 +623,15 @@
         try {
             await db.collection('student_faces').add({
                 name: name.toUpperCase(),
-                ic: ic,
+                ic: cleanIc,
                 class: className,
                 descriptor: currentDescriptor,
                 registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
                 status: 'active'
             });
             
-            showMessage(`✅ Pelajar ${name} berjaya didaftarkan!`, "success");
+            showMessage(`✅ Pelajar ${name.toUpperCase()} berjaya didaftarkan!`, "success");
+            updateDebug(`✅ Pelajar ${name.toUpperCase()} disimpan ke Firestore`);
             
             // Reset form
             studentName.value = '';
@@ -516,11 +642,15 @@
             facePreview.style.color = '#64748b';
             saveBtn.disabled = true;
             
+            // Clear canvas drawing
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            
             // Refresh list
             loadStudentList();
         } catch (error) {
             console.error("Error saving:", error);
             showMessage(`❌ Gagal menyimpan: ${error.message}`, "error");
+            updateDebug(`❌ Gagal simpan: ${error.message}`);
             saveBtn.disabled = false;
         }
     }
@@ -553,9 +683,11 @@
                 `;
             });
             studentListDiv.innerHTML = html;
+            updateDebug(`📋 ${snapshot.size} pelajar dalam senarai`);
         } catch (error) {
             console.error("Error loading list:", error);
             studentListDiv.innerHTML = '<p style="color:#ef4444; text-align:center;">Gagal memuat data</p>';
+            updateDebug(`❌ Gagal muat senarai: ${error.message}`);
         }
     }
 
@@ -565,9 +697,11 @@
             try {
                 await db.collection('student_faces').doc(id).delete();
                 showMessage(`✅ Pelajar ${name} dipadam`, "success");
+                updateDebug(`🗑️ Pelajar ${name} dipadam`);
                 loadStudentList();
             } catch (error) {
                 showMessage(`❌ Gagal memadam: ${error.message}`, "error");
+                updateDebug(`❌ Gagal padam: ${error.message}`);
             }
         }
     };
@@ -595,8 +729,12 @@
     saveBtn?.addEventListener('click', saveToFirestore);
 
     // ==================== INITIALIZE ====================
+    updateDebug("🚀 Memulakan sistem...");
     loadModels();
     loadStudentList();
+    
+    // Disable start button initially until models load
+    if (startBtn) startBtn.disabled = true;
 </script>
 </body>
 </html>
