@@ -259,20 +259,19 @@
                 <div class="camera-status" id="cameraStatus">● Sedia</div>
             </div>
             <div class="webcam-wrapper">
-                <div class="camera-placeholder" id="cameraPlaceholder">
-                    <i class="fas fa-camera"></i>
-                    <p>Kamera belum diaktifkan</p>
-                    <button class="btn-cam btn-start" id="startCameraBtn" style="margin-top: 15px;">
-                        <i class="fas fa-play"></i> Aktifkan Kamera
-                    </button>
-                </div>
                 <video id="webcam" autoplay playsinline muted style="display: none;"></video>
                 <canvas id="canvas" style="display: none;"></canvas>
             </div>
-            <div class="camera-controls" id="cameraControls" style="display: none;">
-                <button class="btn-cam btn-start" id="restartCameraBtn"><i class="fas fa-play"></i> Start</button>
-                <button class="btn-cam btn-capture" id="captureBtn"><i class="fas fa-camera"></i> Tangkap Wajah</button>
-                <button class="btn-cam btn-stop" id="stopCameraBtn"><i class="fas fa-stop"></i> Stop</button>
+            <div class="camera-controls">
+                <button class="btn-cam btn-start" id="startCameraBtn">
+                    <i class="fas fa-play"></i> Aktifkan Kamera
+                </button>
+                <button class="btn-cam btn-capture" id="captureBtn" disabled>
+                    <i class="fas fa-camera"></i> Tangkap Wajah
+                </button>
+                <button class="btn-cam btn-stop" id="stopCameraBtn" disabled>
+                    <i class="fas fa-stop"></i> Stop Kamera
+                </button>
             </div>
             <div class="debug-panel">
                 <i class="fas fa-bug"></i> Status Sistem:
@@ -348,13 +347,10 @@
     const canvas = document.getElementById('canvas');
     const context = canvas.getContext('2d');
     const startBtn = document.getElementById('startCameraBtn');
-    const restartBtn = document.getElementById('restartCameraBtn');
-    const stopBtn = document.getElementById('stopCameraBtn');
     const captureBtn = document.getElementById('captureBtn');
+    const stopBtn = document.getElementById('stopCameraBtn');
     const saveBtn = document.getElementById('saveBtn');
     const cameraStatus = document.getElementById('cameraStatus');
-    const cameraPlaceholder = document.getElementById('cameraPlaceholder');
-    const cameraControls = document.getElementById('cameraControls');
     const studentName = document.getElementById('studentName');
     const studentIC = document.getElementById('studentIC');
     const studentClass = document.getElementById('studentClass');
@@ -379,6 +375,16 @@
         console.log(message);
     }
 
+    // ==================== SHOW MESSAGE ====================
+    function showMessage(msg, type) {
+        messageBox.className = `message ${type}`;
+        messageBox.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${msg}`;
+        setTimeout(() => {
+            messageBox.className = 'message';
+            messageBox.innerHTML = '';
+        }, 4000);
+    }
+
     // ==================== LOAD FACE-API MODELS ====================
     async function loadModels() {
         cameraStatus.innerHTML = '⏳ Memuatkan model...';
@@ -397,8 +403,10 @@
             cameraStatus.innerHTML = '✅ Model sedia';
             updateDebug("✅ Model face-api.js berjaya dimuatkan!");
             
-            // Enable start button
-            if (startBtn) startBtn.disabled = false;
+            // Enable capture button if camera is active
+            if (video.srcObject && video.paused === false) {
+                captureBtn.disabled = false;
+            }
             
         } catch (error) {
             console.error("Error loading models:", error);
@@ -412,10 +420,7 @@
         updateDebug("🔄 Meminta akses kamera...");
         
         try {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            
+            // Request camera permission
             stream = await navigator.mediaDevices.getUserMedia({
                 video: { 
                     width: { ideal: 640 }, 
@@ -427,8 +432,6 @@
             video.srcObject = stream;
             video.style.display = "block";
             canvas.style.display = "block";
-            cameraPlaceholder.style.display = "none";
-            cameraControls.style.display = "flex";
             
             await new Promise((resolve) => {
                 video.onloadedmetadata = () => {
@@ -438,23 +441,22 @@
             });
             
             // Set canvas dimensions
-            const resizeObserver = new ResizeObserver(() => {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                updateDebug(`📐 Canvas size: ${canvas.width}x${canvas.height}`);
-            });
-            resizeObserver.observe(video);
-            
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
             cameraStatus.innerHTML = '📷 Kamera aktif';
             updateDebug(`✅ Kamera aktif! Resolusi: ${video.videoWidth}x${video.videoHeight}`);
             
+            // Enable buttons
+            captureBtn.disabled = false;
+            stopBtn.disabled = false;
+            startBtn.disabled = true;
+            
             if (modelsLoaded) {
                 startDetectionLoop();
             } else {
                 updateDebug("⏳ Menunggu model selesai dimuat...");
+                // Wait for models to load
                 const checkModels = setInterval(() => {
                     if (modelsLoaded) {
                         clearInterval(checkModels);
@@ -469,10 +471,13 @@
             
             if (error.name === 'NotAllowedError') {
                 alert("❌ Akses kamera ditolak. Sila benarkan akses kamera dalam penyemak imbas anda.");
+                showMessage("Akses kamera ditolak. Sila benarkan akses kamera.", "error");
             } else if (error.name === 'NotFoundError') {
                 alert("❌ Tiada kamera dikesan. Pastikan peranti anda mempunyai kamera.");
+                showMessage("Tiada kamera dikesan.", "error");
             } else {
                 alert("❌ Gagal mengakses kamera. Sila cuba lagi.");
+                showMessage("Gagal mengakses kamera. Sila cuba lagi.", "error");
             }
         }
     }
@@ -486,10 +491,13 @@
         video.srcObject = null;
         video.style.display = "none";
         canvas.style.display = "none";
-        cameraPlaceholder.style.display = "flex";
-        cameraControls.style.display = "none";
         cameraStatus.innerHTML = '● Kamera dihentikan';
         updateDebug("⏹️ Kamera dihentikan");
+        
+        // Reset buttons
+        startBtn.disabled = false;
+        captureBtn.disabled = true;
+        stopBtn.disabled = true;
         
         if (animationId) {
             cancelAnimationFrame(animationId);
@@ -707,15 +715,6 @@
     };
 
     // ==================== HELPER FUNCTIONS ====================
-    function showMessage(msg, type) {
-        messageBox.className = `message ${type}`;
-        messageBox.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${msg}`;
-        setTimeout(() => {
-            messageBox.className = 'message';
-            messageBox.innerHTML = '';
-        }, 4000);
-    }
-    
     function escapeHtml(str) {
         if (!str) return '';
         return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
@@ -723,7 +722,6 @@
 
     // ==================== EVENT LISTENERS ====================
     startBtn?.addEventListener('click', startCamera);
-    restartBtn?.addEventListener('click', startCamera);
     stopBtn?.addEventListener('click', stopCamera);
     captureBtn?.addEventListener('click', captureFace);
     saveBtn?.addEventListener('click', saveToFirestore);
@@ -732,9 +730,6 @@
     updateDebug("🚀 Memulakan sistem...");
     loadModels();
     loadStudentList();
-    
-    // Disable start button initially until models load
-    if (startBtn) startBtn.disabled = true;
 </script>
 </body>
 </html>
