@@ -87,7 +87,12 @@
             align-items: center;
             justify-content: center;
         }
-        #webcam { width: 100%; height: auto; display: block; transform: scaleX(-1); }
+        #webcam {
+            width: 100%;
+            height: auto;
+            display: block;
+            transform: scaleX(-1);
+        }
         #canvas {
             position: absolute;
             top: 0;
@@ -122,6 +127,20 @@
             color: #64748b;
         }
         .camera-placeholder i { font-size: 4rem; margin-bottom: 1rem; color: #475569; }
+        .debug-panel {
+            background: #0f172a;
+            border-radius: 1rem;
+            padding: 0.8rem;
+            margin-top: 1rem;
+            font-size: 0.7rem;
+            color: #94a3b8;
+        }
+        .debug-panel pre {
+            color: #10b981;
+            font-family: monospace;
+            font-size: 0.65rem;
+            margin-top: 0.5rem;
+        }
         .attendance-section {
             background: #1e293b;
             border-radius: 1.5rem;
@@ -201,6 +220,12 @@
                 <button class="btn-cam btn-start" id="restartCameraBtn"><i class="fas fa-play"></i> Start Camera</button>
                 <button class="btn-cam btn-stop" id="stopCameraBtn"><i class="fas fa-stop"></i> Stop Camera</button>
             </div>
+            
+            <!-- Debug Panel -->
+            <div class="debug-panel" id="debugPanel">
+                <i class="fas fa-bug"></i> Status Sistem:
+                <pre id="debugInfo">Menunggu inisialisasi...</pre>
+            </div>
         </div>
 
         <!-- Attendance Log -->
@@ -234,31 +259,41 @@
     const cameraPlaceholder = document.getElementById('cameraPlaceholder');
     const cameraControls = document.getElementById('cameraControls');
     const attendanceList = document.getElementById('attendanceList');
+    const debugInfo = document.getElementById('debugInfo');
 
     // Variables
     let modelsLoaded = false;
     let lastScanTime = 0;
-    const SCAN_COOLDOWN = 5000; // 5 seconds
+    const SCAN_COOLDOWN = 5000;
     let animationId = null;
     let stream = null;
-    let currentDetectedFace = null; // Track current detected face to avoid multiple logs
+    let detectionActive = false;
 
     // Registered faces data
     let registeredFaces = [];
+
+    function updateDebug(message) {
+        const time = new Date().toLocaleTimeString();
+        debugInfo.innerHTML = `[${time}] ${message}\n` + debugInfo.innerHTML;
+        if (debugInfo.innerHTML.split('\n').length > 10) {
+            debugInfo.innerHTML = debugInfo.innerHTML.split('\n').slice(0, 10).join('\n');
+        }
+        console.log(message);
+    }
 
     // Load registered faces from localStorage
     function loadRegisteredFaces() {
         const saved = localStorage.getItem('registeredFaces');
         if (saved) {
             registeredFaces = JSON.parse(saved);
-            console.log(`Loaded ${registeredFaces.length} registered faces`);
+            updateDebug(`✅ ${registeredFaces.length} wajah dimuat dari localStorage`);
         } else {
             registeredFaces = [];
-            console.log("No registered faces found");
+            updateDebug(`⚠️ Tiada data wajah. Sila daftar wajah terlebih dahulu.`);
         }
     }
 
-    // Add attendance record (ONLY when face is recognized)
+    // Add attendance record
     function addAttendanceRecord(name, ic, className, status, message) {
         const now = new Date();
         const dateStr = now.toLocaleDateString('ms-MY');
@@ -284,6 +319,7 @@
         localStorage.setItem('attendance_records', JSON.stringify(records));
 
         renderAttendanceList();
+        updateDebug(`✅ Kehadiran direkod: ${name} (${timeStr})`);
     }
 
     function renderAttendanceList() {
@@ -323,23 +359,32 @@
     // Load face-api models
     async function loadModels() {
         cameraStatus.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Memuatkan model...';
+        updateDebug("🔄 Memuatkan model face-api.js...");
         
         try {
-            await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights');
-            await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights');
-            await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights');
+            // Gunakan path yang betul untuk model
+            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+            
+            await Promise.all([
+                faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+            ]);
             
             modelsLoaded = true;
             cameraStatus.innerHTML = '<i class="fas fa-check-circle"></i> Model sedia';
-            console.log("Models loaded successfully");
+            updateDebug("✅ Model face-api.js berjaya dimuatkan!");
         } catch (error) {
             console.error("Error loading models:", error);
             cameraStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Model gagal dimuat';
+            updateDebug(`❌ Gagal muat model: ${error.message}`);
         }
     }
 
     // Start camera
     async function startCamera() {
+        updateDebug("🔄 Meminta akses kamera...");
+        
         try {
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
@@ -366,15 +411,24 @@
                 };
             });
             
+            // Set canvas dimensions to match video
+            const resizeObserver = new ResizeObserver(() => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                updateDebug(`📐 Canvas size: ${canvas.width}x${canvas.height}`);
+            });
+            resizeObserver.observe(video);
+            
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
             cameraStatus.innerHTML = '<i class="fas fa-video"></i> Kamera aktif';
-            console.log("Camera started successfully");
+            updateDebug(`✅ Kamera aktif! Resolusi: ${video.videoWidth}x${video.videoHeight}`);
             
             if (modelsLoaded) {
                 startDetectionLoop();
             } else {
+                updateDebug("⏳ Menunggu model selesai dimuat...");
                 const checkModels = setInterval(() => {
                     if (modelsLoaded) {
                         clearInterval(checkModels);
@@ -385,11 +439,12 @@
         } catch (error) {
             console.error("Camera error:", error);
             cameraStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Kamera gagal';
+            updateDebug(`❌ Kamera gagal: ${error.message}`);
             
             if (error.name === 'NotAllowedError') {
-                alert("❌ Akses kamera ditolak. Sila benarkan akses kamera.");
+                alert("❌ Akses kamera ditolak. Sila benarkan akses kamera dalam penyemak imbas anda.");
             } else if (error.name === 'NotFoundError') {
-                alert("❌ Tiada kamera dikesan.");
+                alert("❌ Tiada kamera dikesan. Pastikan peranti anda mempunyai kamera.");
             } else {
                 alert("❌ Gagal mengakses kamera. Sila cuba lagi.");
             }
@@ -408,10 +463,12 @@
         cameraPlaceholder.style.display = "flex";
         cameraControls.style.display = "none";
         cameraStatus.innerHTML = '<i class="fas fa-circle"></i> Kamera dihentikan';
+        updateDebug("⏹️ Kamera dihentikan");
         
         if (animationId) {
             cancelAnimationFrame(animationId);
             animationId = null;
+            detectionActive = false;
         }
         if (context) {
             context.clearRect(0, 0, canvas.width, canvas.height);
@@ -448,21 +505,29 @@
         );
     }
 
-    // Detection loop
+    // Detection loop - MAIN FUNCTION FOR DRAWING BOXES
     async function startDetectionLoop() {
-        if (!modelsLoaded || !video.srcObject || video.paused) {
-            animationId = requestAnimationFrame(() => startDetectionLoop());
+        if (!modelsLoaded || !video.srcObject || video.paused || detectionActive) {
+            if (!detectionActive) {
+                animationId = requestAnimationFrame(() => startDetectionLoop());
+            }
             return;
         }
+        
+        detectionActive = true;
+        updateDebug("🔄 Memulakan gelung pengecaman wajah...");
         
         const displaySize = { width: video.videoWidth, height: video.videoHeight };
         
         if (displaySize.width === 0 || displaySize.height === 0) {
+            updateDebug("⏳ Menunggu saiz video...");
+            detectionActive = false;
             animationId = requestAnimationFrame(() => startDetectionLoop());
             return;
         }
         
         faceapi.matchDimensions(canvas, displaySize);
+        updateDebug(`📐 Canvas dimension set to ${displaySize.width}x${displaySize.height}`);
         
         async function detect() {
             if (!video.srcObject || video.paused || video.ended) {
@@ -471,39 +536,43 @@
             }
             
             try {
+                // Perform face detection
                 const detections = await faceapi.detectAllFaces(video)
                     .withFaceLandmarks()
                     .withFaceDescriptors();
                 
+                // Resize detections to match canvas
                 const resizedDetections = faceapi.resizeResults(detections, displaySize);
                 
-                // Clear and draw
+                // Clear canvas
                 context.clearRect(0, 0, canvas.width, canvas.height);
-                faceapi.draw.drawDetections(canvas, resizedDetections);
-                faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
                 
-                // Process each detected face
-                if (detections.length > 0) {
-                    for (let i = 0; i < detections.length; i++) {
+                // Draw detections
+                if (resizedDetections.length > 0) {
+                    // Draw face boxes
+                    faceapi.draw.drawDetections(canvas, resizedDetections);
+                    faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+                    
+                    // Process each detected face
+                    for (let i = 0; i < detections.length && i < resizedDetections.length; i++) {
                         const detection = detections[i];
                         const box = resizedDetections[i].detection.box;
                         
-                        if (registeredFaces.length > 0) {
+                        if (registeredFaces.length > 0 && detection.descriptor) {
                             const match = matchFace(detection.descriptor);
                             const now = Date.now();
                             
                             if (match) {
-                                // Face recognized - draw green box with name
+                                // Face recognized - GREEN box with name
                                 context.strokeStyle = '#10b981';
-                                context.lineWidth = 3;
+                                context.lineWidth = 4;
                                 context.strokeRect(box.x, box.y, box.width, box.height);
                                 
-                                // Draw name above box
                                 context.fillStyle = '#10b981';
                                 context.font = 'bold 16px "Plus Jakarta Sans"';
                                 context.fillText(`${match.name}`, box.x, box.y - 10);
                                 
-                                // Record attendance (with cooldown)
+                                // Record attendance with cooldown
                                 if ((now - lastScanTime) > SCAN_COOLDOWN) {
                                     lastScanTime = now;
                                     
@@ -518,34 +587,38 @@
                                         
                                         // Flash effect
                                         context.strokeStyle = '#10b981';
-                                        context.lineWidth = 5;
+                                        context.lineWidth = 6;
                                         context.strokeRect(box.x, box.y, box.width, box.height);
                                     }
                                 }
                             } else {
-                                // Face NOT recognized - show "Wajah Tidak Dikenali" on the box
+                                // Face NOT recognized - RED box with warning
                                 context.strokeStyle = '#ef4444';
                                 context.lineWidth = 3;
                                 context.strokeRect(box.x, box.y, box.width, box.height);
                                 
-                                // Draw "Wajah Tidak Dikenali" text above the box (RED)
                                 context.fillStyle = '#ef4444';
                                 context.font = 'bold 14px "Plus Jakarta Sans"';
                                 context.fillText('⚠️ Wajah Tidak Dikenali', box.x, box.y - 10);
                             }
-                        } else {
-                            // No registered faces at all
+                        } else if (registeredFaces.length === 0) {
+                            // No registered faces - YELLOW box
                             context.strokeStyle = '#f59e0b';
                             context.lineWidth = 3;
                             context.strokeRect(box.x, box.y, box.width, box.height);
                             context.fillStyle = '#f59e0b';
-                            context.font = '14px "Plus Jakarta Sans"';
-                            context.fillText('Tiada data wajah. Sila daftar.', box.x, box.y - 10);
+                            context.font = '12px "Plus Jakarta Sans"';
+                            context.fillText('Tiada data wajah', box.x, box.y - 10);
                         }
+                    }
+                    
+                    if (detections.length > 0) {
+                        updateDebug(`🎯 ${detections.length} wajah dikesan`);
                     }
                 }
             } catch (e) {
                 console.error("Detection error:", e);
+                updateDebug(`❌ Ralat pengecaman: ${e.message}`);
             }
             
             animationId = requestAnimationFrame(detect);
@@ -563,6 +636,7 @@
     loadModels();
     loadRegisteredFaces();
     renderAttendanceList();
+    updateDebug("🚀 Sistem sedia. Klik 'Start Camera' untuk memulakan.");
 </script>
 </body>
 </html>
