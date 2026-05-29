@@ -45,7 +45,7 @@
         .logo-icon i { font-size: 1.5rem; color: white; }
         .logo-text h1 { font-size: 1.2rem; color: white; }
         .logo-text p { font-size: 0.7rem; color: #94a3b8; }
-        .nav-buttons { display: flex; gap: 1rem; }
+        .nav-buttons { display: flex; gap: 1rem; flex-wrap: wrap; }
         .nav-btn {
             background: rgba(255,255,255,0.1);
             border: none;
@@ -116,6 +116,7 @@
             display: flex;
             gap: 1rem;
             justify-content: center;
+            flex-wrap: wrap;
         }
         .btn-cam {
             padding: 0.6rem 1.2rem;
@@ -214,8 +215,11 @@
             color: #ef4444;
             cursor: pointer;
             font-size: 1rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 20px;
+            transition: 0.2s;
         }
-        .delete-btn:hover { color: #dc2626; }
+        .delete-btn:hover { background: #450a0a; color: #dc2626; }
         .debug-panel {
             background: #0f172a;
             border-radius: 1rem;
@@ -259,19 +263,19 @@
                 <div class="camera-status" id="cameraStatus">● Sedia</div>
             </div>
             <div class="webcam-wrapper">
+                <div class="camera-placeholder" id="cameraPlaceholder">
+                    <i class="fas fa-camera"></i>
+                    <p>Kamera belum diaktifkan</p>
+                    <button class="btn-cam btn-start" id="startCameraBtn" style="margin-top: 15px;">
+                        <i class="fas fa-play"></i> Aktifkan Kamera
+                    </button>
+                </div>
                 <video id="webcam" autoplay playsinline muted style="display: none;"></video>
                 <canvas id="canvas" style="display: none;"></canvas>
             </div>
-            <div class="camera-controls">
-                <button class="btn-cam btn-start" id="startCameraBtn">
-                    <i class="fas fa-play"></i> Aktifkan Kamera
-                </button>
-                <button class="btn-cam btn-capture" id="captureBtn" disabled>
-                    <i class="fas fa-camera"></i> Tangkap Wajah
-                </button>
-                <button class="btn-cam btn-stop" id="stopCameraBtn" disabled>
-                    <i class="fas fa-stop"></i> Stop Kamera
-                </button>
+            <div class="camera-controls" id="cameraControls" style="display: none;">
+                <button class="btn-cam btn-capture" id="captureBtn" disabled><i class="fas fa-camera"></i> Tangkap Wajah</button>
+                <button class="btn-cam btn-stop" id="stopCameraBtn" disabled><i class="fas fa-stop"></i> Stop Kamera</button>
             </div>
             <div class="debug-panel">
                 <i class="fas fa-bug"></i> Status Sistem:
@@ -351,6 +355,8 @@
     const stopBtn = document.getElementById('stopCameraBtn');
     const saveBtn = document.getElementById('saveBtn');
     const cameraStatus = document.getElementById('cameraStatus');
+    const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+    const cameraControls = document.getElementById('cameraControls');
     const studentName = document.getElementById('studentName');
     const studentIC = document.getElementById('studentIC');
     const studentClass = document.getElementById('studentClass');
@@ -385,6 +391,12 @@
         }, 4000);
     }
 
+    // ==================== ESCAPE HTML ====================
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+    }
+
     // ==================== LOAD FACE-API MODELS ====================
     async function loadModels() {
         cameraStatus.innerHTML = '⏳ Memuatkan model...';
@@ -403,11 +415,6 @@
             cameraStatus.innerHTML = '✅ Model sedia';
             updateDebug("✅ Model face-api.js berjaya dimuatkan!");
             
-            // Enable capture button if camera is active
-            if (video.srcObject && video.paused === false) {
-                captureBtn.disabled = false;
-            }
-            
         } catch (error) {
             console.error("Error loading models:", error);
             cameraStatus.innerHTML = '❌ Model gagal';
@@ -420,7 +427,10 @@
         updateDebug("🔄 Meminta akses kamera...");
         
         try {
-            // Request camera permission
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
             stream = await navigator.mediaDevices.getUserMedia({
                 video: { 
                     width: { ideal: 640 }, 
@@ -432,6 +442,8 @@
             video.srcObject = stream;
             video.style.display = "block";
             canvas.style.display = "block";
+            cameraPlaceholder.style.display = "none";
+            cameraControls.style.display = "flex";
             
             await new Promise((resolve) => {
                 video.onloadedmetadata = () => {
@@ -440,7 +452,6 @@
                 };
             });
             
-            // Set canvas dimensions
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
@@ -456,7 +467,6 @@
                 startDetectionLoop();
             } else {
                 updateDebug("⏳ Menunggu model selesai dimuat...");
-                // Wait for models to load
                 const checkModels = setInterval(() => {
                     if (modelsLoaded) {
                         clearInterval(checkModels);
@@ -491,6 +501,8 @@
         video.srcObject = null;
         video.style.display = "none";
         canvas.style.display = "none";
+        cameraPlaceholder.style.display = "flex";
+        cameraControls.style.display = "none";
         cameraStatus.innerHTML = '● Kamera dihentikan';
         updateDebug("⏹️ Kamera dihentikan");
         
@@ -498,6 +510,7 @@
         startBtn.disabled = false;
         captureBtn.disabled = true;
         stopBtn.disabled = true;
+        saveBtn.disabled = true;
         
         if (animationId) {
             cancelAnimationFrame(animationId);
@@ -621,7 +634,9 @@
         updateDebug("🔍 Memeriksa IC sudah wujud...");
         const existing = await db.collection('student_faces').where('ic', '==', cleanIc).get();
         if (!existing.empty) {
-            showMessage(`❌ No. IC ${cleanIc} sudah wujud untuk ${existing.docs[0].data().name}`, "error");
+            let existingName = '';
+            existing.forEach(doc => { existingName = doc.data().name; });
+            showMessage(`❌ No. IC ${cleanIc} sudah wujud untuk ${existingName}`, "error");
             return;
         }
         
@@ -713,12 +728,6 @@
             }
         }
     };
-
-    // ==================== HELPER FUNCTIONS ====================
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
-    }
 
     // ==================== EVENT LISTENERS ====================
     startBtn?.addEventListener('click', startCamera);
